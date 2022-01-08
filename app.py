@@ -1,16 +1,15 @@
-import json, config, ccxt
+import json, ccxt, os
 from flask import Flask, request
 app = Flask(__name__)
-creds = config.CREDENTIALS
 
 # get the ftx exchange instance
 exchange_id = 'ftx'
 exchange_class = getattr(ccxt, exchange_id)
 exchange = exchange_class({
-    'apiKey': creds['api_key'],
-    'secret': creds['secret'],
+    'apiKey': os.environ.get('FTX_API_KEY'),
+    'secret': os.environ.get('FTX_SECRET'),
     "headers": {
-        "FTX-SUBACCOUNT": creds['account']
+        "FTX-SUBACCOUNT": os.environ.get('SUBACCOUNT_NAME'),
     }
 })
 
@@ -36,7 +35,7 @@ def webhook():
     data = json.loads(request.data)
 
     # simple alert authentication
-    if data['passphrase'] != config.WEBHOOK_PASSPHRASE:
+    if data['passphrase'] != os.environ.get('WEBHOOK_PASSPHRASE'):
         return {
             "code": "error", 
             "message": "invalid passphrase"
