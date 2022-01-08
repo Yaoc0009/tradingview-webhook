@@ -15,13 +15,15 @@ exchange = exchange_class({
 })
 
 # create function to create order via single json request
-def order(req):
-    data = req.get_json()
+def order(symbol, side, amount, type='market', price=None, params={}):
+   
     try:
         #create buy market order
-        order = exchange.create_order(data['symbol'], data['type'], data['side'], data['amount'], data['price'], data['params'])
+        print("sending order, {} - {} {} {}".format(type, side, amount, symbol))
+        order = exchange.create_order(symbol=symbol, side=side, amount=amount, type=type, price=price, params=params)
     except Exception as e:
-        return {'error': str(e)}
+        print("error: {}".format(e))
+        return False
     return order
 
 @app.route("/")
@@ -38,7 +40,30 @@ def webhook():
             "code": "error", 
             "message": "invalid passphrase"
         }
-    return {
-        "code": "success",
-        "message": data
-    }
+
+    symbol = str(data['strategy']['ticker']).upper()
+    if 'PERP' in symbol:
+        symbol = symbol.replace('PERP', '/USD:USD')
+    elif 'USD' in symbol:
+        symbol = symbol.replace('USD', '/USD')
+    else:
+        return False
+
+    side = data['strategy']['order_action']
+    amount = data['strategy']['order_contracts']
+
+    print(symbol, amount, side)
+    order_response = order(symbol, side, amount)
+
+    if order_response:
+        return {
+            "code": "success",
+            "message": "order executed",
+            "info": order_response
+        }
+    else:
+        print('order failed')
+        return {
+            "code": "error",
+            "message": "order failed"
+        }
