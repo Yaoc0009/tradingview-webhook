@@ -35,13 +35,21 @@ def webhook():
     # print(request.data)
     data = json.loads(request.data)
 
+    # simple alert authentication
     if data['passphrase'] != config.WEBHOOK_PASSPHRASE:
         return {
             "code": "error", 
             "message": "invalid passphrase"
         }
 
-    symbol = str(data['strategy']['ticker']).upper()
+    # prevent alerts from other exchanges
+    if data['exchange'] != 'FTX':
+        return {
+            "code": "error", 
+            "message": "invalid exchange"
+        }
+
+    symbol = str(data['ticker']).upper()
     if 'PERP' in symbol:
         symbol = symbol.replace('PERP', '/USD:USD')
     elif 'USD' in symbol:
