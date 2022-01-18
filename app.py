@@ -2,14 +2,19 @@ import json, ccxt, os
 from flask import Flask, request
 app = Flask(__name__)
 
+FTX_API_KEY = os.environ.get('FTX_API_KEY')
+FTX_SECRET = os.environ.get('FTX_SECRET')
+SUBACCOUNT_NAME = os.environ.get('SUBACCOUNT_NAME')
+WEBHOOK_PASSPHRASE = os.environ.get('WEBHOOK_PASSPHRASE')
+
 # get the ftx exchange instance
 exchange_id = 'ftx'
 exchange_class = getattr(ccxt, exchange_id)
 exchange = exchange_class({
-    'apiKey': os.environ.get('FTX_API_KEY'),
-    'secret': os.environ.get('FTX_SECRET'),
+    'apiKey': FTX_API_KEY,
+    'secret': FTX_SECRET,
     "headers": {
-        "FTX-SUBACCOUNT": os.environ.get('SUBACCOUNT_NAME'),
+        "FTX-SUBACCOUNT": SUBACCOUNT_NAME,
     }
 })
 
@@ -35,7 +40,7 @@ def webhook():
     data = json.loads(request.data)
 
     # simple alert authentication
-    if data['passphrase'] != os.environ.get('WEBHOOK_PASSPHRASE'):
+    if data['passphrase'] != WEBHOOK_PASSPHRASE:
         return {
             "code": "error", 
             "message": "invalid passphrase"
@@ -48,25 +53,34 @@ def webhook():
             "message": "invalid exchange"
         }
 
+    # change ticker format
     symbol = str(data['ticker']).upper()
     if 'PERP' in symbol:
         symbol = symbol.replace('PERP', '/USD:USD')
+        ccxt_symbol = symbol.replace('PERP', '-PERP')
     elif 'USD' in symbol:
         symbol = symbol.replace('USD', '/USD')
+        ccxt_symbol = symbol
     else:
         return False
 
     side = data['strategy']['order_action']
-    amount = data['strategy']['order_contracts']
+    # amount = data['strategy']['order_contracts']
+    usd_balance = exchange.fetch_balance()['USD']['free']
+    curr_price = exchange.fetch_ticker(ccxt_symbol)['last']
+    amount = usd_balance / curr_price
 
     print(symbol, amount, side)
+
+    lever_response = exchange.set_leverage(3)
     order_response = order(symbol, side, amount)
 
     if order_response:
         return {
             "code": "success",
             "message": "order executed",
-            "info": order_response
+            "info": order_response,
+            "leverage": lever_response
         }
     else:
         print('order failed')
