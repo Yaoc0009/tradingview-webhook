@@ -20,7 +20,6 @@ exchange = exchange_class({
 
 # create function to create order via single json request
 def order(symbol, side, amount, type='market', price=None, params={}):
-   
     try:
         #create buy market order
         print("sending order, {} - {} {} {}".format(type, side, amount, symbol))
@@ -65,15 +64,25 @@ def webhook():
         return False
 
     side = data['strategy']['order_action']
-    # amount = data['strategy']['order_contracts']
-    usd_balance = exchange.fetch_balance()['USD']['free']
-    curr_price = exchange.fetch_ticker(ccxt_symbol)['last']
-    amount = usd_balance / curr_price
-
-    print(symbol, amount, side)
-
+    order_id = data['strategy']['order_id']
     lever_response = exchange.set_leverage(3)
-    order_response = order(symbol, side, amount)
+
+    # entry position
+    if order_id in ["Long", "Short"]:
+        usd_balance = exchange.fetch_balance()['USD']['free']
+        curr_price = exchange.fetch_ticker(ccxt_symbol)['last']
+        amount = usd_balance / curr_price
+        order_response = order(symbol, side, amount)
+
+    # close position
+    elif order_id in ["Close entry(s) order Short", "Close entry(s) order Long"]:
+        if exchange.has['fetchPositions']:
+            positions = exchange.fetch_positions()
+            for position in positions:
+                if position['symbol'] == symbol:
+                    amount = position['contracts']
+                    order_response = order(symbol, side, amount, params={'reduce_only': True})
+                    break
 
     if order_response:
         return {
